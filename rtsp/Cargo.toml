@@ -1,10 +1,7 @@
 [package]
-name = "example"
+name = "rtsp"
 version = "0.1.0"
 authors = ["André Terranchie <andre.terranchie@seb.se>"]
 edition = "2018"
 
 [dependencies]
-rype = { path = "../rype" }
-tokio = "0.1.15"
-futures = "0.1.25"

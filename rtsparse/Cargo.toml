@@ -1,11 +1,7 @@
 [package]
-name = "server"
+name = "rtsparse"
 version = "0.1.0"
 authors = ["André Terranchie <andre.terranchie@seb.se>"]
 edition = "2018"
 
 [dependencies]
-bytes = "0.4.4"
-tokio = "0.1.15"
-futures = "0.1.25"
-log = "0.4.6"

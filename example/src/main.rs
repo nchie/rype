@@ -1,12 +1,11 @@
 
 use tokio;
-use server::rtp_server::RtpServer;
-use server::rtsp_server::{ RtspServer };
+use rype::server::{ Server };
 
 use futures::prelude::*;
 
 fn main() {
-    // let server = RtspServer::builder()
+    // let server = Server::builder()
     //     .serve();
     // let server2 = RtpServer::new();
     // let joined = server.join(server2).map( |_|() );

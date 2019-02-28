@@ -1,5 +1,9 @@
-mod conn;
-mod tcp;
+pub mod conn;
+pub mod tcp;
+pub mod session;
+pub mod service;
+pub mod protocol;
+
 
 use std::io::{self, Cursor};
 
@@ -7,17 +11,17 @@ use futures::{Stream, Future, Async, Poll};
 use tokio::net::TcpListener;
 use std::net::SocketAddr;
 
-pub struct RtspServerBuilder {
+pub struct Builder {
 
 }
 
 
-impl RtspServerBuilder {
-    pub fn serve(self) -> Result<RtspServer, ()>{
+impl Builder {
+    pub fn serve(self) -> Result<Server, ()>{
         let addr = "127.0.0.1:8080".to_string();
         let addr = addr.parse::<SocketAddr>().map_err(|err| ())?;
 
-        let server = RtspServer {
+        let server = Server {
             //listener: TcpListener::bind(&addr).map_err(|err| ())?
         };
 
@@ -26,18 +30,18 @@ impl RtspServerBuilder {
     }
 }
 
-pub struct RtspServer {
+pub struct Server {
     //listener: TcpListener
 }
 
-impl RtspServer {
-    pub fn builder() -> RtspServerBuilder {
-        RtspServerBuilder {}
+impl Server {
+    pub fn builder() -> Builder {
+        Builder {}
     }
 
 }
 
-impl Future for RtspServer {
+impl Future for Server {
     type Item = ();
     type Error = ();
 
