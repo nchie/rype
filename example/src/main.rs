@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 
 use tokio;
 use rype::server::{ Server };

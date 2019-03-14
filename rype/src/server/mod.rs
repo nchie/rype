@@ -2,7 +2,7 @@ pub mod conn;
 pub mod tcp;
 pub mod session;
 pub mod service;
-pub mod protocol;
+mod codec;
 
 
 use std::io::{self, Cursor};
@@ -19,7 +19,7 @@ pub struct Builder {
 impl Builder {
     pub fn serve(self) -> Result<Server, ()>{
         let addr = "127.0.0.1:8080".to_string();
-        let addr = addr.parse::<SocketAddr>().map_err(|err| ())?;
+        let addr = addr.parse::<SocketAddr>().map_err(|_err| ())?;
 
         let server = Server {
             //listener: TcpListener::bind(&addr).map_err(|err| ())?

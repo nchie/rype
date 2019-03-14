@@ -3,7 +3,6 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::tcp::AddrIncoming;
 use super::service::{ Service, MakeService, Payload };
-use super::protocol::Protocol;
 
 pub struct Rtsp {
 }
@@ -12,45 +11,31 @@ impl Rtsp {
 
 }
 
-struct DummyProtocol<I>{
-    io: I
-}
 
-// use super::protocol::Request;
-// impl<I, F, R> Protocol for DummyProtocol<I>
-// where
-//     I: AsyncRead + AsyncWrite,
-//     F: Future<Item=Request, Error=()>
-// {
-//     type Io = I;
-
-//     fn request(&mut self) -> F {
-//         future::err::<Request, ()>(())
-//     }
-// }
-
-pub struct Serve<I, MS, P> {
+pub struct Serve<I, MS> {
     incoming: I,
-    make_service: MS,
-    proto: P
+    make_service: MS
 }
 
-impl<I, MS, B, P> Stream for Serve<I, MS, P>
+use super::codec::RtspCodec;
+
+impl<I, MS, B> Stream for Serve<I, MS>
 where
     I: Stream,
     I::Item: AsyncRead + AsyncWrite,
     MS: MakeService<I::Item, ReqBody=B, ResBody=B>,
-    B: Payload,
-    P: Protocol + Clone
+    B: Payload
 {
-    type Item = Connection<I::Item, MS::Service, P>;
+    type Item = Connection<MS::Service, I::Item, RtspCodec>;
     type Error = (); // TODO
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         if let Some(io) = try_ready!(self.incoming.poll().map_err(|_|())) {
             let service = self.make_service.make_service().map_err(|_|())?;
-            // TODO: Wrap io and service in an object which implements future, and uses the service to handle the request and response.
-            Ok(Async::Ready( Some(Connection { io: Some(io), service: service, proto: self.proto.clone() }) ))
+            // Wrap io and service in an object which implements future, and uses the service to handle the request and response.
+            let connection = Connection::new(io, service, RtspCodec{});
+            Ok(Async::Ready(Some( connection )))
+            //Ok(Async::Ready( Some(Connection { io: Some(io), service: service, proto: self.proto.clone() }) ))
 
         } else {
             Ok(Async::Ready(None))
@@ -59,22 +44,73 @@ where
 }
 
 
-pub struct Connection<I, S, P> {
-    io: Option<I>,
+enum Direction { Incoming, Outgoing }
+
+pub struct Connection<S, I, C> {
+    framed: Framed<I, C>,
     service: S,
-    proto: P
+    direction: Direction
 }
 
-impl<I, S, P> Future for Connection<I, S, P> {
+
+use tokio::codec::{Decoder, Encoder, Framed, FramedParts};
+
+impl<S, I, C> Connection<S, I, C> 
+where
+    S: Service,
+    I: AsyncRead + AsyncWrite,
+    C: Encoder + Decoder,
+{
+    fn new(io: I, service: S, codec: C) -> Connection<S, I, C>
+    {
+        let framed = codec.framed(io);
+        Connection { framed, service, direction: Direction::Incoming }
+    }
+
+    // Change codec but keep buffers (i.e. when upgrading)
+    fn into<NC>(self, new_codec: NC) -> Connection<S, I, NC>
+    where
+        NC: Encoder + Decoder
+    {
+        let parts = self.framed.into_parts();
+        let mut new_parts = FramedParts::new(parts.io, new_codec);
+        new_parts.read_buf = parts.read_buf;
+        new_parts.write_buf = parts.write_buf;
+        let framed = Framed::from_parts(new_parts);
+        Connection { framed, service: self.service, direction: self.direction }
+    }
+}
+
+impl<S, I, C> Future for Connection<S, I, C> 
+where
+    S: Service,
+    I: AsyncRead + AsyncWrite,
+    C: Encoder + Decoder
+{
     type Item = ();
     type Error = ();
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        // TODO: While not shutdown
-        // TODO: Handle keep-alive
-        // 1. Use `self.proto` to get `Request` from `self.io`
-        // 2. Poll request thorugh self.service.call
-        // 3. Return response to self.io
-        Ok(Async::Ready( () ))
+
+        loop {
+            let new_direction = match self.direction {
+                Direction::Incoming => {
+                    // Receive request
+                    let message = match self.framed.poll() {
+                        Ok(Async::Ready(value)) => value,
+                        Ok(Async::NotReady) => return Ok(Async::NotReady),
+                        Err(err) => return Err(()),
+                    };
+
+                    Direction::Outgoing
+                },
+                Direction::Outgoing => {
+                    // Send response
+                    Direction::Incoming
+                }
+            };
+
+            self.direction = new_direction;
+        }
     }
 }
